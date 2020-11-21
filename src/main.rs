@@ -15,35 +15,9 @@ use lazy_static::lazy_static;
 
 use validator::validate_url;
 
-// TODO: count and map should be stored in state struct
-// lazy_static! {
-//     static ref COUNT: Mutex<i32> = Mutex::new(0);
-//     static ref MAP: Mutex<HashMap<i32, String>> = Mutex::new(HashMap::new());
-// }
-
-// fn get_count() -> i32 {
-//     *COUNT.lock().unwrap()
-// }
-
-// fn increment_count() {
-//     *COUNT.lock().unwrap() += 1;
-// }
-
-// fn put_mapping(url: &str) {
-//     MAP.lock().unwrap().insert(get_count(), url.to_string());
-// }
-
-// fn get_mapping(key: i32) -> String {
-//     match MAP.lock().unwrap().get(&key) {
-//         Some(url) => format!["{}", url],
-//         None => "/missing".to_string(),
-//     }
-// }
-
-// new state struct
 struct Mapping {
-    count: i32,
-    map: HashMap<i32, String>,
+    count: u32,
+    map: HashMap<u32, String>,
 }
 
 impl Mapping {
@@ -59,11 +33,11 @@ impl Mapping {
         self.map.insert(self.count, url.to_string());
     }
 
-    fn get(&self, key: i32) -> Option<&String> {
+    fn get(&self, key: u32) -> Option<&String> {
         self.map.get(&key)
     }
 
-    fn count(&self) -> i32 {
+    fn count(&self) -> u32 {
         self.count
     }
 }
@@ -82,6 +56,7 @@ fn shortener(url: &RawStr) -> String {
     let url = url.to_string();
 
     if validate_url(&url) {
+        // it seems to be fine to panick on a poisened lock
         MAPPING.lock().unwrap().put(&url.to_string());
         let count = MAPPING.lock().unwrap().count();
         format!["{} -- {}", count, url.to_string()]
@@ -92,7 +67,7 @@ fn shortener(url: &RawStr) -> String {
 
 #[get("/lookup?<key>")]
 fn lookup(key: &RawStr) -> String {
-    match key.to_string().parse::<i32>() {
+    match key.to_string().parse::<u32>() {
         Ok(key) => match MAPPING.lock().unwrap().get(key) {
             Some(url) => url.to_string(),
             None => "we could not find that key 🤷".to_string(),
@@ -112,7 +87,7 @@ fn not_found(req: &Request) -> Redirect {
     let key = &(req.uri().to_string())[1..];
     let key_int;
 
-    match key.to_string().parse::<i32>() {
+    match key.to_string().parse::<u32>() {
         Ok(k) => {
             key_int = k;
         }
