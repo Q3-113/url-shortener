@@ -1,5 +1,5 @@
 [package]
-name = "hello-rocket"
+name = "url-shortener"
 version = "0.1.0"
 authors = ["Q3-113 <simonoswald@outlook.com>"]
 edition = "2018"

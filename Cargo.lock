@@ -351,18 +351,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
 
 [[package]]
-name = "hello-rocket"
-version = "0.1.0"
-dependencies = [
- "base-62",
- "hex",
- "lazy_static",
- "rocket",
- "urlencoding",
- "validator",
-]
-
-[[package]]
 name = "hermit-abi"
 version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1025,6 +1013,18 @@ dependencies = [
  "idna 0.2.0",
  "matches",
  "percent-encoding 2.1.0",
+]
+
+[[package]]
+name = "url-shortener"
+version = "0.1.0"
+dependencies = [
+ "base-62",
+ "hex",
+ "lazy_static",
+ "rocket",
+ "urlencoding",
+ "validator",
 ]
 
 [[package]]
