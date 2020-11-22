@@ -8,8 +8,10 @@ use rocket::http::RawStr;
 use rocket::response::Redirect;
 use rocket::Request;
 
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex};
 
 use lazy_static::lazy_static;
 
@@ -17,7 +19,7 @@ use validator::validate_url;
 
 struct Mapping {
     count: u32,
-    map: HashMap<u32, String>,
+    map: HashMap<String, String>,
 }
 
 impl Mapping {
@@ -28,51 +30,50 @@ impl Mapping {
         }
     }
 
-    fn put(&mut self, url: &str) {
+    fn put(&mut self, url: &str) -> String {
+        // TODO: deal with hash collisions
         self.count += 1;
-        self.map.insert(self.count, url.to_string());
-    }
+        let hash = calculate_hash(&format!["{}{}", url, self.count]);
+        let id = base_62::encode(&hash.to_le_bytes());
+        self.map.insert(id.clone(), url.to_string());
+        
+        id
+    }  
 
-    fn get(&self, key: u32) -> Option<&String> {
+    fn get(&self, key: String) -> Option<&String> {
         self.map.get(&key)
-    }
-
-    fn count(&self) -> u32 {
-        self.count
     }
 }
 
+// TODO: eventually use a persistant key, value store
 lazy_static! {
-    static ref MAPPING: Mutex<Mapping> = Mutex::new(Mapping::new());
+    static ref MAPPING: Arc<Mutex<Mapping>> = Arc::new(Mutex::new(Mapping::new()));
 }
 
 #[get("/")]
 fn index() -> &'static str {
-    "welcome to my url shortener!"
+    "welcome to my url shortener 👋"
 }
 
 #[get("/shorten?<url>")]
 fn shortener(url: &RawStr) -> String {
-    let url = url.to_string();
+    let url = urlencoding::decode(&url.to_string()).unwrap();
 
     if validate_url(&url) {
         // it seems to be fine to panick on a poisened lock
-        MAPPING.lock().unwrap().put(&url.to_string());
-        let count = MAPPING.lock().unwrap().count();
-        format!["{} -- {}", count, url.to_string()]
+        let key = MAPPING.lock().unwrap().put(&url.to_string());
+
+        format!["{} => {}", url, key]
     } else {
-        "invalid url".to_string()
+        "invalid url 😕".to_string()
     }
 }
 
 #[get("/lookup?<key>")]
 fn lookup(key: &RawStr) -> String {
-    match key.to_string().parse::<u32>() {
-        Ok(key) => match MAPPING.lock().unwrap().get(key) {
-            Some(url) => url.to_string(),
-            None => "we could not find that key 🤷".to_string(),
-        },
-        Err(error) => error.to_string(),
+    match MAPPING.lock().unwrap().get(key.to_string()) {
+        Some(url) => url.to_string(),
+        None => "we could not find that key 🤷".to_string(),
     }
 }
 
@@ -84,22 +85,18 @@ fn missing() -> String {
 #[catch(404)]
 fn not_found(req: &Request) -> Redirect {
     // get key from request withour leading "/"
-    let key = &(req.uri().to_string())[1..];
-    let key_int;
+    let key = (req.uri().to_string())[1..].to_string();
 
-    match key.to_string().parse::<u32>() {
-        Ok(k) => {
-            key_int = k;
-        }
-        Err(_) => {
-            return Redirect::to("/missing");
-        }
-    }
-
-    match MAPPING.lock().unwrap().get(key_int) {
+    match MAPPING.lock().unwrap().get(key) {
         Some(url) => Redirect::to(url.to_string()),
         None => Redirect::to("/missing"),
     }
+}
+
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
 }
 
 fn main() {
